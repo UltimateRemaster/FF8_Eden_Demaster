@@ -5,14 +5,18 @@
 #include <filesystem>
 #define XXH_INLINE_ALL
 #include <fstream>
+#include <regex>
 #include <xxhash.h>
 
 #include "config.h"
 #include "opengl.h"
 
 
+std::map<GLuint, CapturedTextureInfo> g_capturedTextures;
+
 void* __stdcall HookGlBindTexture(GLenum target, GLuint texture)
 {
+	lastBoundTexture = texture;
 	return static_cast<void* (__stdcall*)(GLenum, GLuint)>(ogl_bind_texture)(target, texture);
 }
 
@@ -43,6 +47,141 @@ struct loadedTextureInformation
 std::map<uint64_t, loadedTextureInformation> loadedTextures;
 
 
+void* TextureHashingSaveLoad(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* data, GLuint boundId, int lengthModifier, bool& returns)
+{
+	returns = false;
+	if(HASH_ENABLED) //=======HASHING====//
+	{
+		if (data != nullptr && width != 0 && height != 0 && lengthModifier != 0
+			&& width < 1024 && height < 1024)
+		{
+			uint64_t hashCopy = 0;
+			const std::chrono::time_point<std::chrono::steady_clock> start =
+				std::chrono::high_resolution_clock::now();
+			//XXH32_hash_t hash = XXH32(data, width * height * lengthModifier, 0x85EBCA77U); //32ms
+			int hashLength = width*height*lengthModifier;
+			if(currentMode == Modes::MODE_WORLDMAP)
+				if(width==256 && height == 256)
+					hashLength = 256*192*lengthModifier;
+			const auto [low64, high64] = XXH128(data, hashLength, 0x85EBCA77U);
+			hashCopy = high64;
+			std::filesystem::path destinationPath = std::filesystem::current_path();
+			destinationPath.append(std::string(DIRECT_IO_EXPORT_DIR)
+				+ "hashOutput");
+			if (!std::filesystem::exists(destinationPath))
+				std::filesystem::create_directory(destinationPath);
+			std::stringstream ss;
+			ss << std::setw(16) << std::setfill('0') << std::hex
+				<< std::uppercase << high64 << std::dec << std::nouppercase;
+			destinationPath.append(ss.str());
+			if (!knownTextures.contains(high64))
+			{
+				OutputDebug("New hash for textureId: %u. Hash: %016llX%016llX ",
+				            boundId, high64, low64);
+				knownTextures.insert(std::pair(high64, TexImageInformation{
+					                               low64, static_cast<GLuint>(boundId), internalformat, width, height
+				                               }));
+				if (HASH_OUTPUT) //======OUTPUT OF HASHED TEXTURES======//
+				{
+					std::string exportPath = std::string(destinationPath.string());
+					exportPath.append(GetHashExtension(true));
+					if (!std::filesystem::exists(exportPath))
+					{
+						bx::FileWriter writer;
+						bimg::TextureFormat::Enum fmt = bimg::TextureFormat::RGBA8;
+						switch (internalformat)
+						{
+						case GL_RGB8:
+						case GL_RGB:
+						case GL_BGR: fmt = bimg::TextureFormat::BGRA8;
+							break;
+						case GL_BGRA: fmt = bimg::TextureFormat::BGRA8;
+							break;
+						case GL_RGBA: default: fmt = bimg::TextureFormat::BGRA8;
+							break;
+						}
+						if (bx::open(&writer, bx::FilePath(exportPath.c_str())))
+						{
+							//refractor recommends switching to if/else for binary switch, however it's left here for future
+							//if more formats are added
+							/*switch(HASH_OUTPUT_EXT)
+					   {
+						   default:
+							   OutputDebug("Only PNG is supported for now. Saving as PNG");
+							   [[fallthrough]]
+						   case 0:
+							   bimg::imageWritePng(&writer, width, height, width * lengthModifier
+						   , data, fmt, false);
+						   break;
+					   }*/
+							bimg::imageWritePng(&writer, width, height, width * lengthModifier
+							                    , data, fmt, false);
+						}
+					}
+				}
+			}
+			if(HASH_LOAD_HD) //=====HASH LOAD CODE=====//
+			{
+				std::string importPath = std::string(destinationPath.string());
+				importPath.append(HASH_HD_SUFFIX);
+				importPath.append(GetHashExtension(false));
+				if (std::filesystem::exists(importPath))
+				{
+					if (loadedTextures.contains(hashCopy))
+					{
+						auto [dataLoaded, lengthLoaded, widthLoaded, heightLoaded]
+							= loadedTextures[hashCopy];
+						returns = true;
+						return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
+						                                      GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
+						(target, level, internalformat, static_cast<GLsizei>(widthLoaded)
+						 , static_cast<GLsizei>(heightLoaded), border, format, type, dataLoaded);
+					}
+					//Obtain file resolution
+					if(Vector2Di resolution = GetImageResolutionFast(importPath.c_str());
+						resolution.width != static_cast<uint32_t>(width)
+						&& resolution.height != static_cast<uint32_t>(height)
+						&& (resolution.width != 0 && resolution.height != 0))
+					{
+						SafeBimg img = LoadImageFromFile(importPath.c_str());
+						if (const bimg::ImageContainer* imageContainer = img.get();
+							imageContainer->m_data != nullptr)
+						{
+							OutputDebug("Loading custom HD texture: %s!", destinationPath.string().c_str());
+
+						
+							if(bimg::isCompressed(imageContainer->m_format))
+							{
+								RenderTexture(imageContainer); //redundant on checking two times for compression, but whatev
+								//return cast to glTexImage2D but with error
+								returns = true;
+								return static_cast<void * (__stdcall*) (GLenum, GLint, GLint, GLsizei, GLsizei,
+								                                        GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
+								(target, -1, internalformat, static_cast<GLsizei>(width)
+								 , static_cast<GLsizei>(height), border, format, type, data);
+							}
+							loadedTextureInformation lti{};
+							lti.height = imageContainer->m_height;
+							lti.width = imageContainer->m_width;
+							lti.length = imageContainer->m_size;
+							lti.data = malloc(lti.length);
+							memcpy(lti.data, imageContainer->m_data, lti.length);
+							//add lti to loadedTextures
+							loadedTextures.emplace(hashCopy, lti);
+							returns = true;
+							return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
+							                                      GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
+							(target, level, internalformat, static_cast<int>(imageContainer->m_width)
+							 , static_cast<int>(imageContainer->m_height), border, GL_RGBA/*format*/, type
+							 , imageContainer->m_data);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 //below could use splitting into multiple functions
 void* __stdcall HookGlTexImage2D(GLenum target,
 	GLint level,
@@ -54,9 +193,9 @@ void* __stdcall HookGlTexImage2D(GLenum target,
 	GLenum type,
 	const void* data)
 {
-	int boundId;
-	glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundId);
-	//OutputDebug("glTexImage2D (%d): format: %d, %dx%d, void: %08x\n",boundId, internalformat, width, height, data);
+	GLuint boundId = GetCurrentBoundTextureID();
+	if (DEBUG_GLTEXIMAGE2D)
+		OutputDebug("glTexImage2D (%d): format: %d, %dx%d, void: %08x\n",boundId, internalformat, width, height, data);
 	int lengthModifier = 0;
 	if (internalformat == GL_RGBA || internalformat == GL_BGRA
 		|| internalformat == GL_RGBA8)
@@ -64,143 +203,36 @@ void* __stdcall HookGlTexImage2D(GLenum target,
 	else if (internalformat == GL_RGB || internalformat == GL_BGR
 		|| internalformat == GL_RGB8)
 		lengthModifier = 3;
-if(HASH_ENABLED) //=======HASHING====//
-{
-	if (data != nullptr && width != 0 && height != 0 && lengthModifier != 0
-		&& width < 1024 && height < 1024)
-	{
-		uint64_t hashCopy = 0;
-		const std::chrono::time_point<std::chrono::steady_clock> start =
-			std::chrono::high_resolution_clock::now();
-		//XXH32_hash_t hash = XXH32(data, width * height * lengthModifier, 0x85EBCA77U); //32ms
-		int hashLength = width*height*lengthModifier;
-		if(currentMode == Modes::MODE_WORLDMAP)
-			if(width==256 && height == 256)
-				hashLength = 256*192*lengthModifier;
-		const auto [low64, high64] = XXH128(data, hashLength, 0x85EBCA77U);
-		hashCopy = high64;
-		std::filesystem::path destinationPath = std::filesystem::current_path();
-		destinationPath.append(std::string(DIRECT_IO_EXPORT_DIR)
-			+ "hashOutput");
-		if (!std::filesystem::exists(destinationPath))
-			std::filesystem::create_directory(destinationPath);
-		std::stringstream ss;
-		ss << std::setw(16) << std::setfill('0') << std::hex
-			<< std::uppercase << high64 << std::dec << std::nouppercase;
-		destinationPath.append(ss.str());
-		if (!knownTextures.contains(high64))
-		{
-			OutputDebug("New hash for textureId: %u. Hash: %016llX%016llX ",
-				boundId, high64, low64);
-			knownTextures.insert(std::pair(high64, TexImageInformation{
-							low64,static_cast<GLuint>(boundId), internalformat, width, height }));
-if(HASH_OUTPUT) //======OUTPUT OF HASHED TEXTURES======//
-{
-	std::string exportPath = std::string(destinationPath.string());
-	exportPath.append(GetHashExtension(true));
-	if (!std::filesystem::exists(exportPath))
-	{
-		bx::FileWriter writer;
-		bimg::TextureFormat::Enum fmt = bimg::TextureFormat::RGBA8;
-		switch (internalformat)
-		{
-			case GL_RGB8: case GL_RGB: case GL_BGR: fmt = bimg::TextureFormat::BGRA8; break;
-			case GL_BGRA: fmt = bimg::TextureFormat::BGRA8; break;
-			case GL_RGBA: default: fmt = bimg::TextureFormat::BGRA8; break;
-		}
-		if (bx::open(&writer, bx::FilePath(exportPath.c_str())))
-		{
-			//refractor recommends switching to if/else for binary switch, however it's left here for future
-			//if more formats are added
-			/*switch(HASH_OUTPUT_EXT)
-		   {
-			   default:
-				   OutputDebug("Only PNG is supported for now. Saving as PNG");
-				   [[fallthrough]]
-			   case 0:
-				   bimg::imageWritePng(&writer, width, height, width * lengthModifier
-			   , data, fmt, false);
-			   break;
-		   }*/
-			bimg::imageWritePng(&writer, width, height, width * lengthModifier
-			, data, fmt, false);
-		}
-	}
-}
-		}
-		const std::chrono::time_point<std::chrono::steady_clock> stop = std::chrono::high_resolution_clock::now();
-		// OutputDebug("Hashing of %dx%d*%d took %lfms\n", width, height,
-		// 	lengthModifier,
-		// 	static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()) / 1e6);
-		if(HASH_LOAD_HD) //=====HASH LOAD CODE=====//
-		{
-			std::string importPath = std::string(destinationPath.string());
-			importPath.append(HASH_HD_SUFFIX);
-			importPath.append(GetHashExtension(false));
-			if (std::filesystem::exists(importPath))
-			{
-				if (loadedTextures.contains(hashCopy))
-				{
-					auto [dataLoaded, lengthLoaded, widthLoaded, heightLoaded]
-						= loadedTextures[hashCopy];
-					return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
-														  GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
-						(target, level, internalformat, static_cast<GLsizei>(widthLoaded)
-						 , static_cast<GLsizei>(heightLoaded), border, format, type, dataLoaded);
-				}
-				//Obtain file resolution
-				if(Vector2Di resolution = GetImageResolutionFast(importPath.c_str());
-					resolution.width != static_cast<uint32_t>(width)
-					&& resolution.height != static_cast<uint32_t>(height)
-					&& (resolution.width != 0 && resolution.height != 0))
-				{
-					SafeBimg img = LoadImageFromFile(importPath.c_str());
-					if (const bimg::ImageContainer* imageContainer = img.get();
-						imageContainer->m_data != nullptr)
-					{
-						OutputDebug("Loading custom HD texture: %s!", destinationPath.string().c_str());
 
-						
-						if(bimg::isCompressed(imageContainer->m_format))
-						{
-							RenderTexture(imageContainer); //redundant on checking two times for compression, but whatev
-							//return cast to glTexImage2D but with error
-							return static_cast<void * (__stdcall*) (GLenum, GLint, GLint, GLsizei, GLsizei,
-								GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
-							(target, -1, internalformat, static_cast<GLsizei>(width)
-								, static_cast<GLsizei>(height), border, format, type, data);
-						}
-						else
-						{
-							loadedTextureInformation lti{};
-							lti.height = imageContainer->m_height;
-							lti.width = imageContainer->m_width;
-							lti.length = imageContainer->m_size;
-							lti.data = malloc(lti.length);
-							memcpy(lti.data, imageContainer->m_data, lti.length);
-							//add lti to loadedTextures
-							loadedTextures.emplace(hashCopy, lti);
-							return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
-																  GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
-								(target, level, internalformat, static_cast<int>(imageContainer->m_width)
-								 , static_cast<int>(imageContainer->m_height), border, GL_RGBA/*format*/, type
-								 , imageContainer->m_data);
-						}
-					}
-				}
-			}
+
+	
+	// === HASHING AND LOADING TEXTURES === //
+	bool returns;
+	void* value1 = TextureHashingSaveLoad(target, level, internalformat, width, height, border, format, type, data, boundId,
+	                                      lengthModifier, returns);
+	if (returns) return value1;
+
+	
+
+	// We only want to capture the main texture data (level 0) for 2D textures
+	if (target == GL_TEXTURE_2D && level == 0)
+	{
+		if (boundId != 0 && width > 0 && height > 0)
+		{
+			// Add or update the texture in our map.
+			g_capturedTextures[boundId] = {.id = boundId, .width = width, .height = height, .internalFormat = internalformat,
+			.estimatedFilename = LastFilePath};
 		}
 	}
-}
-	//no hashing
-	serverInst.WriteLog(std::format("GLTexSubImage2D: ID: {} Width: {} Height: {}", GetCurrentBoundTextureID(), width, height));
+	
+	//serverInst.WriteLog(std::format("GLTexImage2D: ID: {} Width: {} Height: {}", boundId, width, height));
 	return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
 	                                      GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
 		(target, level, internalformat, width, height
 			, border, format, type, data);
 }
 
-void* __stdcall HookGlTexSubImage2D( 	GLenum target,
+void __stdcall HookGlTexSubImage2D( 	GLenum target,
 	  GLint level,
 	  GLint xoffset,
 	  GLint yoffset,
@@ -210,8 +242,68 @@ void* __stdcall HookGlTexSubImage2D( 	GLenum target,
 	  GLenum type,
 	  const void * pixels)
 {
+	OutputDebug("GlTexSubImage2D: ID: %d Width: %d Height: %d. Last path: %s\n", GetCurrentBoundTextureID(),
+		width, height, LastFilePath.c_str());
+
+	bool tryToReplace = false;
+	
+	if (LastFilePath.contains("mag")) //MAG files
+	{
+		const std::regex regexPattern("_(\\d+)\\."); //fuck my life. Mark "_0." and etc.
+		std::smatch regexMatch;
+		if (std::regex_search(LastFilePath, regexMatch, regexPattern))
+		{
+			int chunkIndex = std::stoi(regexMatch[1].str());
+			if (chunkIndex % 2 != 0)
+			{
+				OutputDebug("Skipping MAG chunk %d\n", chunkIndex);
+				return;
+				//do nothing
+			}
+			tryToReplace = true;
+		}
+	}
+	else if (LastFilePath.contains("c0m")) //Monster files
+	{
+		const std::regex regexPattern("c0m(\\d+)_(\\d+)");
+		std::smatch regexMatch;
+		if (std::regex_search(LastFilePath, regexMatch, regexPattern))
+		{
+			int monsterIndex = std::stoi(regexMatch[1].str()); //c0mXXX_Y.ZZZ -> X
+			int textureIndex = std::stoi(regexMatch[2].str()); //c0mXXX_Y.ZZZ -> Y
+			//There's probably not going to be need for more monsters textures, so let's make it simple IF
+			if (monsterIndex == 121 || monsterIndex == 122 || monsterIndex == 126) //LastBattle
+			{
+				if (textureIndex % 2 != 0)
+					return;
+				tryToReplace = true;
+			}
+			if (monsterIndex == 123) //Skip Griever balls. c0m123_0 should be on the bottom of _4 textures for 121 and 122
+				return;
+		}
+	}
+
+	if (tryToReplace)
+	{
+		std::string localTexturePath = LastFilePath;
+		localTexturePath.replace(localTexturePath.end() - 4, localTexturePath.end(), ".dds");
+		if (std::filesystem::exists(localTexturePath))
+		{
+			OutputDebug("GlTexSubImage2D: Found DDS. Using DDS for %s\n", localTexturePath.c_str());
+			LoadAndRenderTexture(localTexturePath.c_str(), false);
+			return;
+		}
+		const Vector2Di resolution = GetImageResolutionFast(LastFilePath.c_str());
+		static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLsizei, GLsizei,
+									  GLint, GLenum, GLenum, const void*)>(ogl_tex_image2d)
+	(target, level, format, resolution.width, resolution.height
+		, 0, format, type, pixels);
+		return;
+	}
+	
 	OutputDebug("Hooked glTexSubImage2D width: %d height: %d\n", width, height);
-	return static_cast<void* (__stdcall*)(GLenum, GLint, GLint, GLint, GLsizei, GLsizei,
+	
+	static_cast<void (__stdcall*)(GLenum, GLint, GLint, GLint, GLsizei, GLsizei,
 									  GLenum, GLenum, const void*)>(ogl_subTexImage2D)
 	(target, level, xoffset, yoffset, width, height, format, type, pixels);
 }

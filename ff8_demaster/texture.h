@@ -50,6 +50,7 @@ void ReplaceTextureFunction();
 
 inline LPVOID ogl_bind_texture;
 void* __stdcall HookGlBindTexture(GLenum target, GLuint texture);
+inline GLuint lastBoundTexture;
 
 inline LPVOID ogl_tex_parametri;
 void* __stdcall HookGlTextParameteri(GLenum target, GLenum name, GLint param);
@@ -73,7 +74,7 @@ void* __stdcall HookGlTexImage2D(GLenum target,
 	GLenum type,
 	const void* data);
 inline LPVOID ogl_subTexImage2D;
-void* __stdcall HookGlTexSubImage2D( 	GLenum target,
+void __stdcall HookGlTexSubImage2D( 	GLenum target,
 	  GLint level,
 	  GLint xoffset,
 	  GLint yoffset,

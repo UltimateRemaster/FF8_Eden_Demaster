@@ -20,11 +20,14 @@ inline int BATTLE_STAGE_FORCE_RELOAD;
 inline int HASH_ENABLED;
 inline int HASH_OUTPUT;
 inline int HASH_LOAD_HD;
+inline int SKIP_SPLASH;
 
 inline int BATTLE_STAGE_ANIMATION_DELAY;
 inline int HASH_OUTPUT_EXT;
 inline int HASH_LOAD_HD_EXT;
 
 inline int WINDOW_OVERWRITE;
+
+inline int DEBUG_GLTEXIMAGE2D;
 
 void ReadConfigFile();

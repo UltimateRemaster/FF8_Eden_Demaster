@@ -25,6 +25,7 @@ BOOL ModPage(DWORD address, int size = 5);
 void ReplaceWithNOP(DWORD address, int instructionSize = 5);
 void InjectDWORD(DWORD address, DWORD value);
 void InjectWORD(DWORD address, WORD value);
+void InjectBYTE(DWORD address, BYTE value);
 
 
 /****************************************************************************/
@@ -82,6 +83,8 @@ inline DWORD TEX_TYPE;
 inline int currentMode;
 inline std::string currentModeStr;
 
+inline std::string LastFilePath;
+
 static enum Modes
 {
     MODE_NONE,
@@ -111,3 +114,18 @@ inline DWORD* langIdent_ESI;
 inline int currentStage;
 
 inline server serverInst("127.0.0.1", 1337);
+
+void MoreDebugLog(DWORD* a1, const char* pFormat, ...);
+using oLogFunctionSig = void(__cdecl*)(DWORD*, const char*, ...);
+inline oLogFunctionSig oLogFunction;
+
+struct CapturedTextureInfo {
+    GLuint id;
+    int width;
+    int height;
+    GLint internalFormat;
+    std::string estimatedFilename;
+};
+
+// A map to store all unique textures, using the GLuint ID as the key
+extern std::map<GLuint, CapturedTextureInfo> g_capturedTextures;
