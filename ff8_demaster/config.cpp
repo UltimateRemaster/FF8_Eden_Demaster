@@ -15,6 +15,7 @@ void ReadConfigFile()
 
     const INIReader conf(DEMASTER_CONF);
 
+    AUTOUNPACK = conf.GetInteger("", "AUTO_UNPACK", 0);
     UVPATCH = conf.GetInteger("", "UV_PATCH", 0);
     DIRECT_IO = conf.GetInteger("", "DIRECT_IO", 0);
     LOG = conf.GetInteger("", "LOG", 0);

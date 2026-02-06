@@ -10,6 +10,7 @@
 
 #include "config.h"
 #include "opengl.h"
+#include "string_helper.h"
 
 
 std::map<GLuint, CapturedTextureInfo> g_capturedTextures;
@@ -247,7 +248,7 @@ void __stdcall HookGlTexSubImage2D( 	GLenum target,
 
 	bool tryToReplace = false;
 	
-	if (LastFilePath.contains("mag")) //MAG files
+	if (Contains(LastFilePath, "mag")) //MAG files
 	{
 		const std::regex regexPattern("_(\\d+)\\."); //fuck my life. Mark "_0." and etc.
 		std::smatch regexMatch;
@@ -263,7 +264,7 @@ void __stdcall HookGlTexSubImage2D( 	GLenum target,
 			tryToReplace = true;
 		}
 	}
-	else if (LastFilePath.contains("c0m")) //Monster files
+	else if (Contains(LastFilePath,"c0m")) //Monster files
 	{
 		const std::regex regexPattern("c0m(\\d+)_(\\d+)");
 		std::smatch regexMatch;

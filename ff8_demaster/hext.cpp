@@ -277,7 +277,7 @@ void Hext::ApplyAll(const std::string& checkpoint)
     std::filesystem::path hext_patching_path(HEXT_PATH);
     if(!std::filesystem::exists(hext_patching_path))
     {
-        OutputDebug("Hext::applyAll: There's no 'HEXT' folder");
+        OutputDebug("Hext::applyAll: There's no 'HEXT' folder\n");
         return;
     }
     if (std::filesystem::exists(hext_patching_path))

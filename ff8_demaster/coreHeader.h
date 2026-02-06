@@ -66,6 +66,7 @@ void ApplyBattleFieldPatch();
 void ApplyFieldBackgroundPatch();
 void ApplyWorldPatch();
 DWORD GetFieldBackgroundReplacementExist();
+void ZzzUnpack();
 
 inline int lastWidth;
 inline int lastHeight;

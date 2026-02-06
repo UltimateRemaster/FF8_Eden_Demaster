@@ -8,6 +8,7 @@
 #include "config.h"
 #include "opengl.h"
 #include "hext.h"
+#include "zzz.h"
 
 
 //DO NOT DELETE- it acts as an anchor for EFIGS.dll import
@@ -197,6 +198,36 @@ void __cdecl MoreDebugLog(DWORD* a1, const char* pFormat, ...)
 	va_end(args);
 }
 
+void ZzzUnpack()
+{
+	bool shouldUnpack = true;
+	std::string en_exe_dat_path = std::string(DIRECT_IO_EXPORT_DIR) + "\\ff8_en.exe.dat";
+	std::string en_lock_file = std::string(DIRECT_IO_EXPORT_DIR) + "\\unpacked.lock";
+	if(!std::filesystem::exists(DIRECT_IO_EXPORT_DIR))
+	{
+		shouldUnpack = true;
+		std::filesystem::create_directory(DIRECT_IO_EXPORT_DIR);
+	}
+	else
+	{
+		if (std::filesystem::exists(en_exe_dat_path) && std::filesystem::exists(en_lock_file))
+			shouldUnpack = false;
+	}
+	if (!std::filesystem::exists(zzz::zzzMain) || !std::filesystem::exists(zzz::zzzOther))
+	{
+		OutputDebug("main.zzz and/or other.zzz not found. Aborting unpack...\n");
+		shouldUnpack = false;
+	}
+	if (!shouldUnpack)
+		return;
+	
+	zzz::UnpackZzz(zzz::zzzMain, DIRECT_IO_EXPORT_DIR);
+	zzz::UnpackZzz(zzz::zzzOther, DIRECT_IO_EXPORT_DIR);
+	
+	std::ofstream lockFile(en_lock_file);
+    lockFile.close();
+}
+
 BOOL WINAPI DllMain(
 
 	HINSTANCE hinstDLL, // handle to DLL module
@@ -219,6 +250,9 @@ BOOL WINAPI DllMain(
 	if (LOG) logFile = decltype(logFile){ fopen("demasterlog.txt", "wb"), fclose };
 
 	serverInst.WriteLog(std::string("Server initialized"));
+	
+	if (AUTOUNPACK)
+		ZzzUnpack();
 	
 	IMAGE_BASE = reinterpret_cast<DWORD>(GetModuleHandleA(moduleName));
 	OPENGL_HANDLE = reinterpret_cast<DWORD>(GetModuleHandleA("OPENGL32"));

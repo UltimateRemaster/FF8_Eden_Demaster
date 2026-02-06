@@ -2,6 +2,7 @@
 
 #define DEMASTER_CONF "demaster.conf"
 
+inline int AUTOUNPACK;
 inline int UVPATCH;
 inline int DIRECT_IO;
 inline int TEXTURE_PATCH;
