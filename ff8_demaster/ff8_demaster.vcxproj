@@ -72,6 +72,7 @@
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>vendor\include\;vendor\include\compat\msvc;$(IncludePath)</IncludePath>
     <LibraryPath>vendor\lib\;vendor\lib\bgfx;$(LibraryPath)</LibraryPath>
+    <OutDir>N:\_GAMES\FINAL FANTASY VIII - REMASTERED</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -127,8 +128,7 @@
       <AdditionalOptions>/IGNORE:4075,4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).exp
-del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).lib</Command>
+<Command>if exist "$(OutDir)$(TargetName).exp" (del "$(OutDir)$(TargetName).exp") &amp;&amp; if exist "$(OutDir)$(TargetName).lib" (del "$(OutDir)$(TargetName).lib")</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

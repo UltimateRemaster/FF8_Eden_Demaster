@@ -62,6 +62,22 @@ void* __stdcall HookGlTexCoordPointer(GLint size, GLenum type, GLsizei stride, c
     return static_cast<void* (__stdcall*)(GLint, GLenum, GLsizei, const void*)>(ogl_tex_coord_pointer)(size, type, stride, pointer);
 }
 
+void* __stdcall HookGlScissors(GLint x, GLint y, GLsizei width, GLsizei height)
+{
+    GLsizei finalWidth = width;
+    GLsizei finalHeight = height;
+    GLint finalX = x;
+    GLint finalY = y;
+    if (bForceScissors)
+    {
+        finalWidth = ScissorsForceWidth;
+        finalHeight = ScissorsForceHeight;
+        finalX = 0;
+        finalY = 0;
+    }
+    return static_cast<void* (__stdcall*)(GLint, GLint, GLsizei, GLsizei)>(ogl_scissors)(finalX, finalY, finalWidth, finalHeight);
+}
+
 void __stdcall HookGlDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices)
 {
     // read LastVerticesPointer and LastTexCoordPointer, then obtain respective Vector2f and 3f for UV and Verts
@@ -152,9 +168,10 @@ void DrawImGuiFrame()
     ImGui::Begin("DEMASTER DEBUG");
     ImGui_DisplayDebugButtons(); // Critical: the user interacts with this to set bPaused = false
     ImGui::Separator();
-    if (ImGui::BeginChild("Demaster::Textures" ,ImVec2(0,0), true))
+    if (ImGui::BeginChild("Demaster::Debugging" ,ImVec2(0,0), true))
     {
         ImGui_DisplayTexturesSection();
+        ImGui_DisplayAspectRatioSection();
         ImGui::EndChild();
     }
     ImGui::End();
@@ -250,6 +267,39 @@ void ImGui_DisplayTexturesSection()
             }
             ImGui::Separator();
         }
+    }
+}
+
+void ImGui_DisplayAspectRatioSection()
+{
+    if (ImGui::CollapsingHeader("Aspect Ratio + Scissors"))
+    {
+        bool bEnableAspectRatio = FILL_ASPECT_RATIO;
+        ImGui::Checkbox("Enable aspect ratio", &bEnableAspectRatio);
+        if (bEnableAspectRatio != FILL_ASPECT_RATIO)
+            FILL_ASPECT_RATIO = bEnableAspectRatio;
+        
+        ImGui::Checkbox("Force aspect ratio", &bForceNewResolution);
+        ImGui::SliderInt("X", &FinalForcedX, -256, 256);
+        ImGui::SliderInt("Y", &FinalForcedY, -256, 256);
+        ImGui::SliderInt("Width", &FinalForcedWidth, 64, 4096);
+        ImGui::SliderInt("Height", &FinalForcedHeight, 64, 4096);
+        ImGui::Separator();
+        
+        ImGui::Checkbox("Force scissor test", &bForceScissors);
+        if (bForceScissors)
+        {
+            ImGui::SliderInt("Scissor left", &ScissorsForceX, -4096, 4096);
+            ImGui::SliderInt("Scissor top", &ScissorsForceY, -4096, 4096);
+            ImGui::SliderInt("Scissor width", &ScissorsForceWidth, 1, 4096);
+            ImGui::SliderInt("Scissor height", &ScissorsForceHeight, 1, 4096);
+        }
+        
+        ImGui::Separator();
+        ImGui::SliderInt("SetResolution.X", &SetResolutionX, -480, 1024);
+        ImGui::SliderInt("SetResolution.Y", &SetResolutionY, -480, 1024);
+        ImGui::SliderInt("SetResolution.Width", &SetResolutionWidth, 240, 1024);
+        ImGui::SliderInt("SetResolution.Height", &SetResolutionHeight, 240, 1024);
     }
 }
 
@@ -517,6 +567,7 @@ void ViewportBackdoorInject(bool& backdoorUsed)
         MH_CreateHookApi(L"OPENGL32", "glDrawElements", HookGlDrawElements, &ogl_draw_elements);
         MH_CreateHookApi(L"OPENGL32", "glVertexPointer", HookGlVertexPointer, &ogl_vertex_pointer);
         MH_CreateHookApi(L"OPENGL32", "glTexCoordPointer", HookGlTexCoordPointer, &ogl_tex_coord_pointer);
+        MH_CreateHookApi(L"OPENGL32", "glScissor", HookGlScissors, &ogl_scissors);
     }
     MH_CreateHook(&SwapBuffers, &HookSwapBuffers, reinterpret_cast<LPVOID*>(&swapBuffersTrampoline));
 
@@ -569,6 +620,12 @@ void* __stdcall HookGlViewport(const GLint x, const GLint y, const GLsizei width
             finalWidth = ffWindowWidth;
             finalHeight = ffWindowHeight;
         }
+    
+    if (bForceNewResolution)
+    {
+        finalWidth = FinalForcedWidth;
+        finalHeight = FinalForcedHeight;
+    }
     
     return static_cast<void* (__stdcall*)(GLint, GLint, GLsizei, GLsizei)>(oglViewport)
     (finalX, finalY, finalWidth, finalHeight);

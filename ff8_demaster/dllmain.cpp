@@ -9,6 +9,7 @@
 #include "opengl.h"
 #include "hext.h"
 #include "zzz.h"
+#include "opengl.h"
 
 
 //DO NOT DELETE- it acts as an anchor for EFIGS.dll import
@@ -34,6 +35,32 @@ __declspec(naked) void AsmReplaceWindowTitle()
 	{
 		PUSH windowTitle
 		JMP dllmainBackAddr
+	}
+}
+
+//	SetResolution_102190D0+E3   FF 76 04                       push    dword ptr [esi+4] ; x
+//	SetResolution_102190D0+E6   68 D8 89 CA 01                 push    1CA89D8h <-- here, we inject
+__declspec(naked) void AsmSetResolution()
+{
+	__asm
+	{
+		POP EAX //Due to where we hook-in, we need to pop to EAX (it's safe reg), and then re-push, but change the esi
+		MOV EAX, SetResolutionX
+		MOV [esi+4], EAX
+		
+		MOV EAX, SetResolutionY
+		MOV [esi+0x28], EAX
+		
+		MOV EAX, SetResolutionWidth
+		MOV [esi+0x34], EAX
+		
+		MOV EAX, SetResolutionHeight
+		MOV [esi+0x30], EAX
+		
+		PUSH dword ptr [esi+4]
+		PUSH 0x1CA89D8
+		
+		JMP oSetResolution
 	}
 }
 
@@ -228,6 +255,11 @@ void ZzzUnpack()
     lockFile.close();
 }
 
+void HookSetResolution()
+{
+	
+}
+
 BOOL WINAPI DllMain(
 
 	HINSTANCE hinstDLL, // handle to DLL module
@@ -248,6 +280,8 @@ BOOL WINAPI DllMain(
 	InitTest();
 	ReadConfigFile();
 	if (LOG) logFile = decltype(logFile){ fopen("demasterlog.txt", "wb"), fclose };
+	
+	
 
 	serverInst.WriteLog(std::string("Server initialized"));
 	
@@ -285,6 +319,11 @@ BOOL WINAPI DllMain(
 		OutputDebug("Skipping splash screen\n");
 		InjectBYTE(GetAddressBase(SKIP_SLASHSCREEN), 0x01);
 	}
+	
+	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(SET_RESOLUTION)),&HookSetResolution, &oSetResolution);
+	oSetResolution = reinterpret_cast<DWORD>(InjectJMP(GetAddressBase(SET_RESOLUTION)+0xE6,
+	reinterpret_cast<DWORD>(AsmSetResolution), 5));
+	HookSetResolution();
 
 	//InjectJMP(GetAddressBase(MORE_DEBUG_LOG), reinterpret_cast<DWORD>(&MoreDebugLog));
 	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(MORE_DEBUG_LOG)), &MoreDebugLog, reinterpret_cast<LPVOID*>(&oLogFunction));
