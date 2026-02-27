@@ -66,6 +66,7 @@ void ApplyBattleFieldPatch();
 void ApplyFieldBackgroundPatch();
 void ApplyWorldPatch();
 DWORD GetFieldBackgroundReplacementExist();
+void ZzzUnpack();
 
 inline int lastWidth;
 inline int lastHeight;
@@ -106,6 +107,9 @@ static enum Modes
 DWORD WtpCheck();
 void WtpGl();
 void FbgGl();
+
+void HookSetResolution();
+inline DWORD oSetResolution;
 
 inline DWORD parm1; //arg+8
 

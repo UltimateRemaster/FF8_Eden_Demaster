@@ -8,6 +8,8 @@
 #include "config.h"
 #include "opengl.h"
 #include "hext.h"
+#include "zzz.h"
+#include "opengl.h"
 
 
 //DO NOT DELETE- it acts as an anchor for EFIGS.dll import
@@ -33,6 +35,32 @@ __declspec(naked) void AsmReplaceWindowTitle()
 	{
 		PUSH windowTitle
 		JMP dllmainBackAddr
+	}
+}
+
+//	SetResolution_102190D0+E3   FF 76 04                       push    dword ptr [esi+4] ; x
+//	SetResolution_102190D0+E6   68 D8 89 CA 01                 push    1CA89D8h <-- here, we inject
+__declspec(naked) void AsmSetResolution()
+{
+	__asm
+	{
+		POP EAX //Due to where we hook-in, we need to pop to EAX (it's safe reg), and then re-push, but change the esi
+		MOV EAX, SetResolutionX
+		MOV [esi+4], EAX
+		
+		MOV EAX, SetResolutionY
+		MOV [esi+0x28], EAX
+		
+		MOV EAX, SetResolutionWidth
+		MOV [esi+0x34], EAX
+		
+		MOV EAX, SetResolutionHeight
+		MOV [esi+0x30], EAX
+		
+		PUSH dword ptr [esi+4]
+		PUSH 0x1CA89D8
+		
+		JMP oSetResolution
 	}
 }
 
@@ -197,6 +225,41 @@ void __cdecl MoreDebugLog(DWORD* a1, const char* pFormat, ...)
 	va_end(args);
 }
 
+void ZzzUnpack()
+{
+	bool shouldUnpack = true;
+	std::string en_exe_dat_path = std::string(DIRECT_IO_EXPORT_DIR) + "\\ff8_en.exe.dat";
+	std::string en_lock_file = std::string(DIRECT_IO_EXPORT_DIR) + "\\unpacked.lock";
+	if(!std::filesystem::exists(DIRECT_IO_EXPORT_DIR))
+	{
+		shouldUnpack = true;
+		std::filesystem::create_directory(DIRECT_IO_EXPORT_DIR);
+	}
+	else
+	{
+		if (std::filesystem::exists(en_exe_dat_path) && std::filesystem::exists(en_lock_file))
+			shouldUnpack = false;
+	}
+	if (!std::filesystem::exists(zzz::zzzMain) || !std::filesystem::exists(zzz::zzzOther))
+	{
+		OutputDebug("main.zzz and/or other.zzz not found. Aborting unpack...\n");
+		shouldUnpack = false;
+	}
+	if (!shouldUnpack)
+		return;
+	
+	zzz::UnpackZzz(zzz::zzzMain, DIRECT_IO_EXPORT_DIR);
+	zzz::UnpackZzz(zzz::zzzOther, DIRECT_IO_EXPORT_DIR);
+	
+	std::ofstream lockFile(en_lock_file);
+    lockFile.close();
+}
+
+void HookSetResolution()
+{
+	
+}
+
 BOOL WINAPI DllMain(
 
 	HINSTANCE hinstDLL, // handle to DLL module
@@ -217,8 +280,13 @@ BOOL WINAPI DllMain(
 	InitTest();
 	ReadConfigFile();
 	if (LOG) logFile = decltype(logFile){ fopen("demasterlog.txt", "wb"), fclose };
+	
+	
 
 	serverInst.WriteLog(std::string("Server initialized"));
+	
+	if (AUTOUNPACK)
+		ZzzUnpack();
 	
 	IMAGE_BASE = reinterpret_cast<DWORD>(GetModuleHandleA(moduleName));
 	OPENGL_HANDLE = reinterpret_cast<DWORD>(GetModuleHandleA("OPENGL32"));
@@ -251,6 +319,11 @@ BOOL WINAPI DllMain(
 		OutputDebug("Skipping splash screen\n");
 		InjectBYTE(GetAddressBase(SKIP_SLASHSCREEN), 0x01);
 	}
+	
+	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(SET_RESOLUTION)),&HookSetResolution, &oSetResolution);
+	oSetResolution = reinterpret_cast<DWORD>(InjectJMP(GetAddressBase(SET_RESOLUTION)+0xE6,
+	reinterpret_cast<DWORD>(AsmSetResolution), 5));
+	HookSetResolution();
 
 	//InjectJMP(GetAddressBase(MORE_DEBUG_LOG), reinterpret_cast<DWORD>(&MoreDebugLog));
 	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(MORE_DEBUG_LOG)), &MoreDebugLog, reinterpret_cast<LPVOID*>(&oLogFunction));

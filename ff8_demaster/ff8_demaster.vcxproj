@@ -72,7 +72,7 @@
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>vendor\include\;vendor\include\compat\msvc;$(IncludePath)</IncludePath>
     <LibraryPath>vendor\lib\;vendor\lib\bgfx;$(LibraryPath)</LibraryPath>
-    <OutDir>N:\BACKUP\BORYS_HDD\FINAL FANTASY VIII REMASTERED\</OutDir>
+    <OutDir>N:\_GAMES\FINAL FANTASY VIII - REMASTERED</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -112,7 +112,7 @@
       </PrecompiledHeaderFile>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <LanguageStandard>stdcpp23</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <CallingConvention>Cdecl</CallingConvention>
       <EnableEnhancedInstructionSet>
       </EnableEnhancedInstructionSet>
@@ -128,8 +128,7 @@
       <AdditionalOptions>/IGNORE:4075,4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).exp
-del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).lib</Command>
+<Command>if exist "$(OutDir)$(TargetName).exp" (del "$(OutDir)$(TargetName).exp") &amp;&amp; if exist "$(OutDir)$(TargetName).lib" (del "$(OutDir)$(TargetName).lib")</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -255,6 +254,7 @@ del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).lib</Command>
     <ClCompile Include="texturepatch_v2_fieldChara.cpp" />
     <ClCompile Include="texturepatch_v2_world.cpp" />
     <ClCompile Include="uvpatch.cpp" />
+    <ClCompile Include="zzz.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h" />
@@ -288,6 +288,7 @@ del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).lib</Command>
     <ClInclude Include="string_helper.h" />
     <ClInclude Include="texture.h" />
     <ClInclude Include="texturepatch_battle_data.h" />
+    <ClInclude Include="zzz.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="minhook\dll_resources\MinHook.def" />
