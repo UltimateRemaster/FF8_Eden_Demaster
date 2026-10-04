@@ -2,17 +2,24 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-// Ogólne informacje o zestawie są kontrolowane poprzez następujący 
-// zestaw atrybutów. Zmień wartości tych atrybutów, aby zmodyfikować informacje
-// powiązane z zestawem.
-[assembly: AssemblyTitle("viiidem_customlauncher")]
-[assembly: AssemblyDescription("")]
+// ============================================================
+// IDENTIFY THE EDEN BOOTSTRAP AND PRESERVE ORIGINAL AUTHOR CREDIT
+// MaKiPL authored FF8_Demaster; Ultimate Remaster contributes the Eden fork.
+// ============================================================
+[assembly: AssemblyTitle("FFVIII Eden Demaster Bootstrap")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("viiidem_customlauncher")]
-[assembly: AssemblyCopyright("Copyright ©  2020")]
+[assembly: AssemblyCompany("MaKiPL / Ultimate Remaster")]
+[assembly: AssemblyProduct("FFVIII_EDEN_DEMASTER.exe")]
+[assembly: AssemblyCopyright("Copyright (c) 2020 MaKiPL. Eden fork modifications Copyright (c) Ultimate Remaster.")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
+
+// ============================================================
+// RECORD THE USER-AUTHORIZED WEBSITE AND FORK REPOSITORY
+// Keep addresses in their dedicated fields without repeating them in Comments.
+// ============================================================
+[assembly: AssemblyMetadata("Website", "https://ultimateremaster.com")]
+[assembly: AssemblyMetadata("RepositoryUrl", "https://github.com/UltimateRemaster/FF8_Eden_Demaster")]
 
 // Ustawienie elementu ComVisible na wartość false sprawia, że typy w tym zestawie są niewidoczne
 // dla składników COM. Jeśli potrzebny jest dostęp do typu w tym zestawie z
@@ -33,4 +40,7 @@ using System.Runtime.InteropServices;
 // przy użyciu symbolu „*”, tak jak pokazano poniżej:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+// ============================================================
+// VERSION THE METADATA REVISION WITHOUT CHANGING ASSEMBLY IDENTITY
+// Keep the existing assembly version for compatibility with the fork.
+// ============================================================

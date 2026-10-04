@@ -1,0 +1,30 @@
+// ============================================================
+// IDENTIFY THE BOOTSTRAP WITHOUT VERSION OR COMMENT STRINGS
+// Preserve original author credit and the user's fork repository.
+// ============================================================
+#include <winver.h>
+LANGUAGE 0x09, 0x01
+1 VERSIONINFO
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "MaKiPL / Ultimate Remaster\0"
+            VALUE "FileDescription", "FFVIII Remastered Demaster bootstrap; original author MaKiPL, Eden fork by Ultimate Remaster.\0"
+            VALUE "ProductName", "FFVIII_EDEN_DEMASTER.exe\0"
+            VALUE "LegalCopyright", "Copyright (c) 2020 MaKiPL. Eden fork modifications Copyright (c) Ultimate Remaster.\0"
+            VALUE "Website", "https://ultimateremaster.com\0"
+            VALUE "RepositoryUrl", "https://github.com/UltimateRemaster/FF8_Eden_Demaster\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END
