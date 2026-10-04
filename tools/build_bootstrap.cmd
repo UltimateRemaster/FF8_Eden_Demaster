@@ -31,7 +31,7 @@ rem The output name supplies the canonical original filename metadata.
 rem ============================================================
 call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x86 >nul
 if errorlevel 1 exit /b 1
-rc /nologo /fo "%BOOTSTRAP_OUTPUT_DIRECTORY%\EdenBootstrap.res" "%BOOTSTRAP_SOURCE_DIRECTORY%\Properties\EdenBootstrap.rc"
+rc /nologo /i "%BOOTSTRAP_SOURCE_DIRECTORY%\Properties" /fo "%BOOTSTRAP_OUTPUT_DIRECTORY%\EdenBootstrap.res" "%BOOTSTRAP_SOURCE_DIRECTORY%\Properties\EdenBootstrap.rc"
 if errorlevel 1 exit /b 1
 "%BOOTSTRAP_COMPILER%" /nologo /noconfig /nostdlib+ /target:winexe /platform:anycpu /optimize+ /deterministic+ /langversion:7.3 /utf8output ^
   /win32res:"%BOOTSTRAP_OUTPUT_DIRECTORY%\EdenBootstrap.res" ^

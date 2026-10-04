@@ -4,6 +4,7 @@
 // ============================================================
 #include <winver.h>
 LANGUAGE 0x09, 0x01
+1 24 "EdenBootstrap.manifest"
 1 VERSIONINFO
 FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 FILEFLAGS 0
