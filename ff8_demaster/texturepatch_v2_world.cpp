@@ -1,3 +1,4 @@
+#include "demaster_extension.h"
 #include "config.h"
 #include "coreHeader.h"
 DWORD _asm_WorldRetAddr1;
@@ -43,6 +44,23 @@ worldTextureStructure ws[] =
 
 int GetTextureIndex();
 
+// ============================================================
+// TELL AN OBSERVER OF EVERY WORLD TEXTURE LOADED (demaster_extension.h, setWorldTextureObserver)
+// After every call of LoadImageIntoWorldStruct that returns true for a slot below 35, the file name: at both returns
+// of true, so its three callers stay as they are.
+// ============================================================
+static DemasterWorldTextureObserver worldTextureObserver = nullptr;
+void __cdecl SetWorldTextureObserver(DemasterWorldTextureObserver observer)
+{
+	worldTextureObserver = observer;
+}
+static bool WorldTextureLoaded(const size_t texIndex, const char* const localn)
+{
+	if (const auto observer = worldTextureObserver; observer && texIndex < 35 && localn)
+		try { observer(localn); } catch (...) { /* Keep the loader's result. */ }
+	return true;
+}
+
 //you can't just create new folder because >WEEP< - too lazy to find the cause
 DWORD lastKnownTextureId{ 0 };
 bool LoadImageIntoWorldStruct(size_t texIndex, const char* const localn, int tPage, int palette)
@@ -54,7 +72,7 @@ bool LoadImageIntoWorldStruct(size_t texIndex, const char* const localn, int tPa
 		{
 			OutputDebug("%s::%d::WARNING attempt to load texture with new name:\n\t%s\n\t!=\n\t%s\n", __func__,__LINE__, localn, ws[texIndex].localPath);
 		}
-		return true;
+		return WorldTextureLoaded(texIndex, localn);
 	}
 	SafeBimg img = LoadImageFromFile(localn);
 	if (!img)
@@ -68,7 +86,7 @@ bool LoadImageIntoWorldStruct(size_t texIndex, const char* const localn, int tPa
 
 	OutputDebug("\t%s::%d::localEAX: %d, Tpage: %d, Palette: %d, TexIndex: %d\n", __func__, __LINE__, *(DWORD*)(IMAGE_BASE + 0x1780f88), tPage, palette, texIndex);
 	OutputDebug("\t%s::%d::w: %d; h: %d; channels: %d\n", __func__, __LINE__, ws[texIndex].width, ws[texIndex].height, ws[texIndex].channels);
-	return true;
+	return WorldTextureLoaded(texIndex, localn);
 }
 void WtpGl()
 {

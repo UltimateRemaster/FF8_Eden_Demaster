@@ -16,3 +16,9 @@ void ApplyBattleMonsterPatch()
 	
 	InjectDWORD(IMAGE_BASE + GetAddress(BTLMON6), reinterpret_cast<DWORD>(TexFuncMonsterTexProvider));
 }
+// The table and its row count (demaster_extension.h, monsterTextureTable).
+const void* MonsterTextureTable(uint32_t& count)
+{
+	count = TexFuncMonsterTexProviderLength;
+	return TexFuncMonsterTexProvider;
+}

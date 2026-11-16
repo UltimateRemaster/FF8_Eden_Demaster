@@ -10,6 +10,7 @@
 #include "hext.h"
 #include "zzz.h"
 #include "opengl.h"
+#include "content_profile.h"
 
 
 //DO NOT DELETE- it acts as an anchor for EFIGS.dll import
@@ -35,32 +36,6 @@ __declspec(naked) void AsmReplaceWindowTitle()
 	{
 		PUSH windowTitle
 		JMP dllmainBackAddr
-	}
-}
-
-//	SetResolution_102190D0+E3   FF 76 04                       push    dword ptr [esi+4] ; x
-//	SetResolution_102190D0+E6   68 D8 89 CA 01                 push    1CA89D8h <-- here, we inject
-__declspec(naked) void AsmSetResolution()
-{
-	__asm
-	{
-		POP EAX //Due to where we hook-in, we need to pop to EAX (it's safe reg), and then re-push, but change the esi
-		MOV EAX, SetResolutionX
-		MOV [esi+4], EAX
-		
-		MOV EAX, SetResolutionY
-		MOV [esi+0x28], EAX
-		
-		MOV EAX, SetResolutionWidth
-		MOV [esi+0x34], EAX
-		
-		MOV EAX, SetResolutionHeight
-		MOV [esi+0x30], EAX
-		
-		PUSH dword ptr [esi+4]
-		PUSH 0x1CA89D8
-		
-		JMP oSetResolution
 	}
 }
 
@@ -255,11 +230,6 @@ void ZzzUnpack()
     lockFile.close();
 }
 
-void HookSetResolution()
-{
-	
-}
-
 BOOL WINAPI DllMain(
 
 	HINSTANCE hinstDLL, // handle to DLL module
@@ -287,7 +257,14 @@ BOOL WINAPI DllMain(
 	
 	if (AUTOUNPACK)
 		ZzzUnpack();
-	
+
+	// Which content the battle hooks and the sub-image replacement serve: Lunar Cry 4 or later, or the standard
+	// Demaster's (content_profile.h). Read once, before any hook can run.
+	LUNARCRY4_CONTENT = demaster::ChooseContent(CONTENT_PROFILE,
+		std::filesystem::path(DIRECT_IO_EXPORT_DIR) / "textures" / "battle.fs" / "hd_new") == demaster::ContentProfile::LunarCry4;
+	CONTENT_DECIDED = 1;
+	OutputDebug("Content profile: %s (CONTENT_PROFILE=%d)\n", LUNARCRY4_CONTENT ? "Lunar Cry 4 or later" : "standard", CONTENT_PROFILE);
+
 	IMAGE_BASE = reinterpret_cast<DWORD>(GetModuleHandleA(moduleName));
 	OPENGL_HANDLE = reinterpret_cast<DWORD>(GetModuleHandleA("OPENGL32"));
 
@@ -320,10 +297,8 @@ BOOL WINAPI DllMain(
 		InjectBYTE(GetAddressBase(SKIP_SLASHSCREEN), 0x01);
 	}
 	
-	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(SET_RESOLUTION)),&HookSetResolution, &oSetResolution);
-	oSetResolution = reinterpret_cast<DWORD>(InjectJMP(GetAddressBase(SET_RESOLUTION)+0xE6,
-	reinterpret_cast<DWORD>(AsmSetResolution), 5));
-	HookSetResolution();
+	// The upstream's experimental widescreen (0107523: SetResolution forced to x=107, 426x480, and glScissor forced
+	// to 4096) is left out.
 
 	//InjectJMP(GetAddressBase(MORE_DEBUG_LOG), reinterpret_cast<DWORD>(&MoreDebugLog));
 	//MH_CreateHook(reinterpret_cast<LPVOID>(GetAddressBase(MORE_DEBUG_LOG)), &MoreDebugLog, reinterpret_cast<LPVOID*>(&oLogFunction));

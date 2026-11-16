@@ -108,9 +108,6 @@ DWORD WtpCheck();
 void WtpGl();
 void FbgGl();
 
-void HookSetResolution();
-inline DWORD oSetResolution;
-
 inline DWORD parm1; //arg+8
 
 inline DWORD* langIdent_ESI;

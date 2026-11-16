@@ -18,6 +18,9 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
+    <ClCompile Include="demaster_extension.cpp">
+      <Filter>Pliki źródłowe</Filter>
+    </ClCompile>
     <ClCompile Include="iopatch.cpp">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>

@@ -73,6 +73,7 @@
     <IncludePath>vendor\include\;vendor\include\compat\msvc;$(IncludePath)</IncludePath>
     <LibraryPath>vendor\lib\;vendor\lib\bgfx;$(LibraryPath)</LibraryPath>
     <OutDir>N:\_GAMES\FINAL FANTASY VIII - REMASTERED</OutDir>
+    <TargetName>FFVIII_EDEN_DEMASTER</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -85,12 +86,12 @@
     <LibraryPath>vendor\lib\;vendor\lib\bgfx;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir).build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir).build\$(Configuration)\</IntDir>
-    <TargetName>ff8_demaster</TargetName>
+    <TargetName>FFVIII_EDEN_DEMASTER</TargetName>
     <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_JP|x64'">
-    <TargetName>ff8_demaster</TargetName>
+    <TargetName>FFVIII_EDEN_DEMASTER</TargetName>
     <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
     <GenerateManifest>false</GenerateManifest>
     <LinkIncremental>true</LinkIncremental>
@@ -225,6 +226,7 @@ del $(SolutionDir).dist\$(Configuration)\$(AssemblyName).lib</Command>
     <ClCompile Include="config.cpp" />
     <ClCompile Include="debug.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="demaster_extension.cpp" />
     <ClCompile Include="file.cpp" />
     <ClCompile Include="hext.cpp" />
     <ClCompile Include="image.cpp" />

@@ -6,6 +6,7 @@
 typedef std::unique_ptr<bimg::ImageContainer, decltype(&bimg::imageFree)> SafeBimg;
 SafeBimg SafeBimgInit(bimg::ImageContainer* img = nullptr);
 SafeBimg LoadImageFromFile(const char* const filename);
+SafeBimg CreateImageRgba8(uint32_t width, uint32_t height, const void* rgba8);
 
 bool DDSorPNG(char* buffer, size_t size, const char* fmt, ...);
 

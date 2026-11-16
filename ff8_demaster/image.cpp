@@ -7,6 +7,7 @@
 
 #include "coreHeader.h"
 #include "opengl.h"
+#include "upload_levels.h"
 
 SafeBimg SafeBimgInit(bimg::ImageContainer* img) { return {img, bimg::imageFree}; }
 
@@ -44,6 +45,17 @@ SafeBimg LoadImageFromFile(const char* const filename)
 	return SafeBimgInit();
 }
 
+// An RGBA8 image of given pixels in this Demaster's bimg allocator, owned like LoadImageFromFile's result (its deleter
+// frees it through the allocator the container records): demaster_extension.h, createImageRgba8.
+static bx::DefaultAllocator edenImageAllocator{};
+SafeBimg CreateImageRgba8(const uint32_t width, const uint32_t height, const void* const rgba8)
+{
+	if (!width || !height || width > 0xFFFF || height > 0xFFFF || !rgba8)
+		return SafeBimgInit();
+	return SafeBimgInit(bimg::imageAlloc(&edenImageAllocator, bimg::TextureFormat::RGBA8, static_cast<uint16_t>(width),
+		static_cast<uint16_t>(height), 0, 1, false, false, rgba8));
+}
+
 //appends DDS checks if file exists and then checks for PNG. returns false if atleast one exists. true on failure.
 bool DDSorPNG(char* buffer, const size_t inSize, const char* fmt, ...)
 {
@@ -75,21 +87,23 @@ void RenderTexture(const bimg::ImageContainer* img)
 void RenderUncompressedTexture(const bimg::ImageContainer* img, const TextureFormatInfo& texInfo)
 {
 	CheckGlew();
-	uint32_t width = img->m_width;
-	uint32_t height = img->m_height;
-	uint32_t depth = img->m_depth;
-	const uint8_t startLod = bx::min<uint8_t>(0, img->m_numMips - 1);
-
-	for (uint8_t lod = 0, num = img->m_numMips; lod < num; ++lod)
-	{
-		width = bx::uint32_max(1, width);
-		height = bx::uint32_max(1, height);
-
-		if (bimg::ImageMip mip{}; imageGetRawData(*img, 0, lod + startLod, img->m_data, img->m_size, mip))
-			glTexImage2D(GL_TEXTURE_2D, lod, static_cast<GLint>(texInfo.m_internalFmt)
-				, static_cast<GLsizei>(img->m_width), static_cast<GLsizei>(img->m_height), 0
-				, texInfo.m_fmt, texInfo.m_type, mip.m_data);
-	}
+	// Every level with its own size (upload_levels.h); the loop sent the size of level 0 for all of them.
+	demaster::SendLevels(img->m_width, img->m_height, img->m_numMips,
+		[img](uint32_t lod, const void*& data, uint32_t& size)
+		{
+			bimg::ImageMip mip{};
+			if (!imageGetRawData(*img, 0, static_cast<uint8_t>(lod), img->m_data, img->m_size, mip))
+				return false;
+			data = mip.m_data;
+			size = mip.m_size;
+			return true;
+		},
+		[&texInfo](uint32_t lod, uint32_t width, uint32_t height, const void* data, uint32_t)
+		{
+			glTexImage2D(GL_TEXTURE_2D, static_cast<GLint>(lod), static_cast<GLint>(texInfo.m_internalFmt)
+				, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0
+				, texInfo.m_fmt, texInfo.m_type, data);
+		});
 }
 
 void RenderCompressedTexture(const bimg::ImageContainer* img, const TextureFormatInfo& texInfo)
@@ -99,20 +113,24 @@ void RenderCompressedTexture(const bimg::ImageContainer* img, const TextureForma
 		OutputDebug("Texture is compressed, but compression is not supported on your GPU. Skipping draw.");
 		return;
 	}
-	uint32_t width = img->m_width;
-	uint32_t height = img->m_height;
-	const uint8_t startLod = bx::min<uint8_t>(0, img->m_numMips - 1);
-
-	for (uint8_t lod = 0, num = img->m_numMips; lod < num; ++lod)
-	{
-		width = bx::uint32_max(1, width);
-		height = bx::uint32_max(1, height);
-
-		if (bimg::ImageMip mip{}; bimg::imageGetRawData(*img, 0, lod + startLod, img->m_data, img->m_size, mip))
-			glCompressedTexImage2D(GL_TEXTURE_2D, lod, texInfo.m_internalFmt, static_cast<GLsizei>(img->m_width)
-			                       , static_cast<GLsizei>(img->m_height), 0, static_cast<GLsizei>(mip.m_size),
-			                       mip.m_data);
-	}
+	// Every level with its own size (upload_levels.h); the loop sent the size of level 0 for all of them, and GL refused
+	// every level past the first (its byte count is the level's, not level 0's).
+	demaster::SendLevels(img->m_width, img->m_height, img->m_numMips,
+		[img](uint32_t lod, const void*& data, uint32_t& size)
+		{
+			bimg::ImageMip mip{};
+			if (!bimg::imageGetRawData(*img, 0, static_cast<uint8_t>(lod), img->m_data, img->m_size, mip))
+				return false;
+			data = mip.m_data;
+			size = mip.m_size;
+			return true;
+		},
+		[&texInfo](uint32_t lod, uint32_t width, uint32_t height, const void* data, uint32_t size)
+		{
+			glCompressedTexImage2D(GL_TEXTURE_2D, static_cast<GLint>(lod), texInfo.m_internalFmt,
+			                       static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+			                       static_cast<GLsizei>(size), data);
+		});
 }
 
 void LoadAndRenderTexture(const char* const filename, const bool bAppendPath)

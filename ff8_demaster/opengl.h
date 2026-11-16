@@ -36,22 +36,6 @@ struct frameStructure
 
 inline frameStructure frame;
 
-struct VertexTexCoordData
-{
-    GLint size;
-    GLsizei stride;
-    const void* pointer;
-};
-struct Vector3f
-{
-    float x,y,z;
-};
-
-struct Vector2f
-{
-    
-};
-
 
 //====Other OpenGL functions
 typedef void(__stdcall* OglClear)(GLbitfield);
@@ -62,24 +46,6 @@ static OglClearColor oglClearColor;
 
 typedef void(__stdcall* OglBufferData)(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
 static OglBufferData oglBufferData;
-
-//Triangle rendering hooking
-inline LPVOID ogl_vertex_pointer;
-inline VertexTexCoordData LastVerticesPointer;
-void* __stdcall HookGlVertexPointer(GLint size, GLenum type, GLsizei stride, const void *pointer);
-
-inline LPVOID ogl_tex_coord_pointer;
-inline VertexTexCoordData LastTexCoordPointer;
-void* __stdcall HookGlTexCoordPointer(GLint size, GLenum type, GLsizei stride, const void* pointer);
-
-inline LPVOID ogl_scissors;
-void* __stdcall HookGlScissors(GLint x, GLint y, GLsizei width, GLsizei height);
-
-inline LPVOID ogl_draw_elements;
-inline std::vector<Vector3f> DrawVerticesBuffer;
-inline std::vector<Vector2f> DrawTexCoordBuffer;
-inline int TestTextureID = -1;
-void __stdcall HookGlDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices);
 
 
 void PumpMessages();
@@ -94,24 +60,6 @@ void CreateImGuiImplementation();
 // IMGUI debug functions
 void ImGui_DisplayDebugButtons();
 void ImGui_DisplayTexturesSection();
-void ImGui_DisplayAspectRatioSection();
-
-// IMGUI Aspect ratio + scissors
-inline int FinalForcedWidth = 1280;
-inline int FinalForcedHeight = 720;
-inline int FinalForcedX = 0;
-inline int FinalForcedY = 0;
-inline bool bForceNewResolution = false;
-inline bool bForceScissors = true;
-inline int ScissorsForceX = -640;
-inline int ScissorsForceY = -640;
-inline int ScissorsForceWidth = 4096;
-inline int ScissorsForceHeight = 4096;
-
-inline int SetResolutionX = 107;
-inline int SetResolutionY = 0;
-inline int SetResolutionWidth = 426;
-inline int SetResolutionHeight = 480;
 // End of IMGUI debug functions
 
 GLuint GetCurrentBoundTextureID();

@@ -1,8 +1,12 @@
 #include "coreHeader.h"
 #include "texture.h"
+#include "config.h"
 #include "minhook/include/MinHook.h"
 
 DWORD _bhpBackAdd1;
+// Lunar Cry 4 content (config.h LUNARCRY4_CONTENT): _bhp hands every battle file to _bhpVoid without the engine's own
+// replacement checks, as the Lunar Cry 4 Demaster (d2f6320) does; standard content goes through the checks, as 1.3.7.
+BYTE bhpSkipEngineChecks = 0;
 DWORD _bhpBackAdd2;
 
 char* _bhpStrPointer;
@@ -146,7 +150,9 @@ BYTE _bhpVoid()
 
 		const DWORD gfTexResolution = GetImageResolutionFast(localPath).width;
 		OutputDebug("_bhpVoid::Injecting MAG/GFs atlas resolution of: %d\n", gfTexResolution);
-		InjectMonsterAtlasResolution(gfTexResolution/2);
+		// Lunar Cry 4 packs two chunks side by side in mag###_0.dds: the atlas is half its width (d2f6320). Standard
+		// content's mag###_0 is one chunk (1.3.7).
+		InjectMonsterAtlasResolution(LUNARCRY4_CONTENT ? gfTexResolution/2 : gfTexResolution);
 		
 		return 1;
 	}
@@ -174,7 +180,9 @@ __declspec(naked) void _bhp()
 
 		// Let's skip the checks no matter what
 		// We will be forcing our methods
-		JMP _notReplacing
+		// (Lunar Cry 4, d2f6320: always. Standard content, 1.3.7: never.)
+		CMP BYTE PTR bhpSkipEngineChecks, 0
+		JNE _notReplacing
 		//
 		MOV ECX, [ECX]
 		TEST ECX, ECX
@@ -230,36 +238,27 @@ __declspec(naked) void _bhp()
 
 DWORD * GetAtlasResolutionGfs(const uint32_t battleId, const int32_t a2, DWORD* width, DWORD* height)
 {
-	OutputDebug("GetAtlasResolutionGfs: battleId: %d, a2: %d. (Resolution: %dx%d)\n", battleId, a2, *width, *height);
-	DWORD *result = nullptr; // eax
-	result = height;
-	return result;
+	// Lunar Cry 4 (d2f6320) keeps the size the engine and _bhpVoid gave: it only logs.
+	if (LUNARCRY4_CONTENT)
+	{
+		OutputDebug("GetAtlasResolutionGfs: battleId: %d, a2: %d. (Resolution: %dx%d)\n", battleId, a2, *width, *height);
+		return height;
+	}
+	// Standard content: the Demaster 1.3.7 table (0d8cf54), as it was.
+	DWORD *result; // eax
 
 	if ( battleId > 0x386 )
 	{
-		//if (battleId != 0x446)
-		//{
-			//result = reinterpret_cast<DWORD*>(battleId - 1121);
-			//OutputDebug("GetAtlasResolutionGfs: unknown battleId: %d (%d x %d). EAX: %d\n", battleId, *width, *height, result);
-			 // if (a2)
-				// return result;
-		//}
-		switch (battleId)
+		if (battleId != 0x446)
 		{
-		case 1121: //Ultimecia battle 1st phase
-			*height = *width = 1536;
-			break;
-		case 1122: //Ultimecia Griever + last phase Ultimecia
-		case 1126:
-			*height = *width = 1536;
-			InjectWORD(IMAGE_BASE + GetAddress(LOAD_BATTLE_EXT)+0xBC1+1, static_cast<WORD>(768));
-			break;
-		default:
-			//*height = *width = 768;
-			break;
+			result = reinterpret_cast<DWORD*>(battleId - 1121);
+			OutputDebug("GetAtlasResolutionGfs: unknown battleId: %d (%d x %d). EAX: %d\n", battleId, *width, *height, result);
+			if (battleId != 1121 || a2)
+				return result;
 		}
+		*width = 768;
 		result = height;
-		OutputDebug("GetAtlasResolutionGfs: battleId: %d. Setting resolution: (%d x %d)\n", battleId, *width, *height);
+		*height = 768;
 		return result;
 	}
 	if ( battleId == 902 ) //Chocobo
@@ -294,9 +293,9 @@ DWORD * GetAtlasResolutionGfs(const uint32_t battleId, const int32_t a2, DWORD* 
 			{
 				*width = lastGetImageResolution.width;
 				result = height;
-				*height = lastGetImageResolution.height; //because there's _1 texture, so we double the height
+				*height = lastGetImageResolution.height*2; //because there's _1 texture, so we double the height
 				//We now need to override what InjectAtlas function did, but this is offset, so we have to adjust it to the base image height instead
-				//InjectWORD(IMAGE_BASE + GetAddress(LOAD_BATTLE_EXT)+0xBC1+1, static_cast<WORD>(lastGetImageResolution.height));
+				InjectWORD(IMAGE_BASE + GetAddress(LOAD_BATTLE_EXT)+0xBC1+1, static_cast<WORD>(lastGetImageResolution.height));
 			}
 		}
 	}
@@ -309,6 +308,7 @@ void* BHP_Atlas_Detour;
 void ApplyBattleHookPatch()
 {
 	currentStage = -1;
+	bhpSkipEngineChecks = LUNARCRY4_CONTENT ? 1 : 0;
 	_bhpBackAdd1 = reinterpret_cast<DWORD>(InjectJMP(IMAGE_BASE + GetAddress(_BHPBACKADD1),
 		reinterpret_cast<DWORD>(_bhp), 17));
 	_bhpBackAdd2 = reinterpret_cast<DWORD>(InjectJMP(IMAGE_BASE + GetAddress(_BHPBACKADD2),
