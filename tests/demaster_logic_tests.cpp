@@ -3,10 +3,14 @@
 // Built and run by tools/run_tests.cmd (x86, no GL, no game). A failure names what went wrong and exits with 1.
 // ============================================================
 #include "../ff8_demaster/content_profile.h"
+#include "../ff8_demaster/file_read.h"
+#include "../ff8_demaster/image_header.h"
 #include "../ff8_demaster/upload_levels.h"
 
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
+#include <memory>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -135,6 +139,50 @@ void Profiles(const std::filesystem::path& root) {
             demaster::ChooseContent(-1, lc4) == ContentProfile::LunarCry4 && demaster::ChooseContent(7, root / "standard") == ContentProfile::Standard,
             "CONTENT_PROFILE 0, 1 or the files' choice was not honoured");
 }
+
+// ============================================================
+// The battle character atlas is sized from the first texture's header alone (image_header.h): a PNG's IHDR, a DDS
+// header's height then width; a missing file or a cut one gives zero. The monster and GF atlases keep their side.
+// ============================================================
+void ImageHeaders(const std::filesystem::path& root) {
+    std::filesystem::create_directories(root);
+    WritePng(root / "wide.png", 1536, 576);
+    const auto png = ReadImageHeaderSize((root / "wide.png").string().c_str());
+    Require(png.width == 1536 && png.height == 576, "a PNG's size was not read from its IHDR");
+    {
+        uint32_t header[5]{0x20534444, 124, 0x1007, 512, 1024};   // "DDS ", dwSize, dwFlags, dwHeight, dwWidth
+        std::ofstream(root / "wide.dds", std::ios::binary).write(reinterpret_cast<const char*>(header), sizeof header);
+    }
+    const auto dds = ReadImageHeaderSize((root / "wide.dds").string().c_str());
+    Require(dds.width == 1024 && dds.height == 512 && dds.dds && !png.dds, "a DDS's size was not read as height then width");
+    // The battle atlases keep the side they were always sized from: a PNG's width, a DDS's height (the upstream reader
+    // took dwHeight for the width); and lastGetImageResolution's view of a DDS keeps both sides as it saw them.
+    Require(AtlasSide(png) == 1536 && AtlasSide(dds) == 512 && AtlasSize(dds).width == 512 && AtlasSize(dds).height == 1024,
+            "the side a battle atlas is sized from changed for a PNG or a DDS");
+    WriteFile(root / "short.dds");   // "DDS " alone
+    const auto none = ReadImageHeaderSize((root / "missing.png").string().c_str());
+    const auto shortOne = ReadImageHeaderSize((root / "short.dds").string().c_str());
+    Require(!none.width && !none.height && !shortOne.width && !shortOne.height, "a missing or cut file gave a size");
+}
+
+// ============================================================
+// A texture file is read whole in one read (file_read.h): every byte as on disk, larger than one read of the old
+// stream's buffer; a missing or empty file gives nothing (LoadImageFromFile then returns no image, as before).
+// ============================================================
+void WholeFiles(const std::filesystem::path& root) {
+    std::filesystem::create_directories(root);
+    std::vector<char> written(3 * 1024 * 1024 + 17);
+    for (size_t i = 0; i < written.size(); ++i) written[i] = char(i * 31 + (i >> 11));
+    std::ofstream(root / "big.dds", std::ios::binary).write(written.data(), std::streamsize(written.size()));
+    std::ofstream(root / "empty.dds", std::ios::binary).close();
+    std::unique_ptr<char[]> bytes;
+    size_t size = 0;
+    Require(ReadWholeFile((root / "big.dds").string().c_str(), bytes, size) && size == written.size() &&
+                std::memcmp(bytes.get(), written.data(), size) == 0,
+            "a file was not read whole with its bytes");
+    Require(!ReadWholeFile((root / "missing.dds").string().c_str(), bytes, size) && !bytes && !size, "a missing file gave bytes");
+    Require(!ReadWholeFile((root / "empty.dds").string().c_str(), bytes, size) && !bytes && !size, "an empty file gave bytes");
+}
 }
 
 int main(int count, char** arguments) {
@@ -146,9 +194,11 @@ int main(int count, char** arguments) {
     MipLevels();
     PackedNames();
     Profiles(root);
+    ImageHeaders(root / "image-headers");
+    WholeFiles(root / "whole-files");
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
     if (failures) return 1;
-    std::printf("Demaster logic: mip level sizes, packed chunk names and content profiles passed\n");
+    std::printf("Demaster logic: mip level sizes, packed chunk names, content profiles, image header sizes and whole-file reads passed\n");
     return 0;
 }

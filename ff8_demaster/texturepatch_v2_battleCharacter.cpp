@@ -1,4 +1,5 @@
 #include "coreHeader.h"
+#include "image_header.h"
 //#include "texturepatch_battle_data.h"
 
 
@@ -14,12 +15,14 @@ void _bcpObtainTextureDatas(int aIndex)
 	char n[256]{ 0 };
 
 	DDSorPNG(n, 256, "%stextures\\battle.fs\\hd_new\\d%xc%03u_0", DIRECT_IO_EXPORT_DIR, (aIndex - 4097) / 100, (aIndex - 4097) % 100);
-	
-	SafeBimg img = LoadImageFromFile(n); //chara 0
-	if (!img)
+
+	// chara 0: only its size is needed, and the header has it (image_header.h); decoding the whole image here cost
+	// tens of milliseconds a party member on every battle start.
+	const ImageHeaderSize size = ReadImageHeaderSize(n);
+	if (!size.width || !size.height)
 		return;
-	width_bcp = img->m_width * 2;
-	height_bcp = img->m_height * 2;
+	width_bcp = size.width * 2;
+	height_bcp = size.height * 2;
 
 	OutputDebug("_bcpObtainTextureDatas:: width=%d, height=%d, filename=%s\n", width_bcp, height_bcp, n);
 	return;

@@ -4,7 +4,11 @@
 
 void OutputDebug(const char* fmt, ...)
 {
-#if _DEBUG
+    // Only with the log on (LOG=1 in demaster.conf, logFile open in dllmain.cpp). Formatting and printing every message
+    // of the engine (its debug routine is redirected here) and of this DLL with the log off cost the game's thread a
+    // few percent of a field change; the Release build keeps the log working instead of compiling it out.
+    if (!logFile)
+        return;
     int invalid_dd = reinterpret_cast<int>(fmt);
     if(invalid_dd == 0x11C8EDD0
         || invalid_dd == 0x19e8cc)
@@ -27,7 +31,6 @@ void OutputDebug(const char* fmt, ...)
         fwrite(tmp_str, sizeof(char), strlen(tmp_str), logFile.get());
         fflush(logFile.get());
     }
-#endif
 }
 
 //Maki: Why this doesn't work?

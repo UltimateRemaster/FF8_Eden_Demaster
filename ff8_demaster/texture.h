@@ -23,8 +23,7 @@ struct Vector2Di
 
 inline Vector2Di lastGetImageResolution;
 Vector2Di GetImageResolutionFast(const char* filePath);
-void ReadPNGHeaderResolutionFast(std::istream& stream, Vector2Di& resolution);
-void ReadDDSHeaderResolutionFast(std::istream& stream, Vector2Di& resolution);
+DWORD GetImageAtlasSideFast(const char* filePath);
 
 inline constexpr DWORD DEFAULT_MONSTER_ATLAS_TEX_RESOLUTION = 0x180;
 void InjectMonsterAtlasResolution(const DWORD monsterTexResolution);

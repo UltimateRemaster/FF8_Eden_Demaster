@@ -13,14 +13,10 @@ char* _bhpStrPointer;
 DWORD* texture_file_enemy_ex_Id;
 
 //instead of hardcoding data to DLL, we make it dynamic so it seeks the textures on it's own
-DWORD _bhpMonsterStructVoid()
+// batId: the EDX of the hooked code, pushed by _bhpMonsterStruct (reading EDX inside this function only worked while
+// the compiler's prologue left it alone).
+DWORD __cdecl _bhpMonsterStructVoid(int batId)
 {
-	
-	int batId;
-	__asm
-	{
-		MOV batId, EDX
-	}
 	batId -= 1000;
 	if (batId < 0 || batId>144)
 		return -1;
@@ -31,7 +27,7 @@ DWORD _bhpMonsterStructVoid()
 	
 	if(GetFileAttributesA(localn) != INVALID_FILE_ATTRIBUTES)
 	{
-		DWORD res = GetImageResolutionFast(localn).width;
+		DWORD res = GetImageAtlasSideFast(localn);
 		InjectMonsterAtlasResolution(res);
 	}
 	else
@@ -60,7 +56,9 @@ __declspec(naked) void _bhpMonsterStruct()
 {
 	__asm
 	{
+		PUSH EDX
 		CALL _bhpMonsterStructVoid
+		ADD ESP, 4
 		TEST EAX, EAX
 		JZ _out
 		//EAX HERE CONTAINS THE PAL NUM
@@ -128,7 +126,7 @@ BYTE _bhpVoid()
 
 		*texture_file_enemy_ex_Id = 1000 + intMonsId;
 
-		DWORD monsterTexResolution = GetImageResolutionFast(localPath).width;
+		DWORD monsterTexResolution = GetImageAtlasSideFast(localPath);
 
 		OutputDebug("_bhpVoid::Injecting atlas resolution of: %d\n", monsterTexResolution);
 
@@ -148,10 +146,13 @@ BYTE _bhpVoid()
 		if (GetFileAttributesA(localPath) == INVALID_FILE_ATTRIBUTES) //file doesn't exist, so please do not replace textures
 			return 0;
 
-		const DWORD gfTexResolution = GetImageResolutionFast(localPath).width;
+		const DWORD gfTexResolution = GetImageAtlasSideFast(localPath);
 		OutputDebug("_bhpVoid::Injecting MAG/GFs atlas resolution of: %d\n", gfTexResolution);
-		// Lunar Cry 4 packs two chunks side by side in mag###_0.dds: the atlas is half its width (d2f6320). Standard
-		// content's mag###_0 is one chunk (1.3.7).
+		// Lunar Cry 4's mag###_0.dds is the whole atlas (both chunks, stacked: FUN_11604610 sends the second at y 0x180)
+		// at twice the size, and replaces the texture whole at the even chunk (HookGlTexSubImage2D): the value here
+		// only sizes the allocation it replaces (texture coordinates come normalized from the game), half the side as
+		// in d2f6320. Standard content's mag###_0 is one chunk (1.3.7). The side is the one the atlases were always
+		// sized from (image_header.h, AtlasSide: for a DDS, its height).
 		InjectMonsterAtlasResolution(LUNARCRY4_CONTENT ? gfTexResolution/2 : gfTexResolution);
 		
 		return 1;
@@ -165,11 +166,17 @@ BYTE _bhpVoid()
 //due to the way the function is constructed (break from while(1)) we need to re-check
 //if the algorithm found Id- if yes on ANY case, then jumpout. If all indexes are zero
 //then let's search texture replacement our way by checking file exists and not hardcoded struct
-__declspec(naked) void _bhp()
+// _bhp's first statement, as a function of its own (a C++ statement inside a naked function needs unoptimized code).
+static void __cdecl InjectDefaultMonsterAtlasResolution()
 {
 	InjectMonsterAtlasResolution(DEFAULT_MONSTER_ATLAS_TEX_RESOLUTION);
+}
+
+__declspec(naked) void _bhp()
+{
 	__asm
 	{
+		CALL InjectDefaultMonsterAtlasResolution //EAX, ECX and EDX are free here, as they were after the C++ call
 		//set current [ebp+str] to our dword for debugging and pre-checkin
 		MOV ECX, [ebp - 0x38]
 		MOV _bhpStrPointer, ECX

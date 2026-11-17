@@ -167,26 +167,21 @@ __declspec(naked) void _asm_bgModDds()
 //inline void* ddsBuffer= nullptr;
 inline char* ddsFilename = nullptr;
 inline GLsizei ddsWidth, ddsHeight;
+// _asm_BufferDdsMod's work, as a function of its own (a C++ statement inside a naked function needs unoptimized code).
+static void __cdecl BufferDdsMod()
+{
+	LoadAndRenderTexture(ddsFilename);
+}
+
 __declspec(naked) void _asm_BufferDdsMod()
 {
 	__asm
 	{
 		//MOV ddsBuffer, EAX
 		MOV ddsFilename, EBX
-	}
-
-	LoadAndRenderTexture(ddsFilename);
-
-	//ddsWidth = reinterpret_cast<GLsizei>(ddsBuffer + 0x0C);
-	//ddsHeight = reinterpret_cast<GLsizei>(ddsBuffer + 0x10);
-
-	//glCompressedTexImage2D(GL_TEXTURE_2D, 0, )
-
-	__asm
-	{
+		CALL BufferDdsMod //EAX, ECX and EDX are free here, as they were after the C++ call
 		JMP asmFieldBgRetAddr4DdsMod
 	}
-
 }
 
 __declspec(naked) void _asm_InjectFieldBackgroundModule()

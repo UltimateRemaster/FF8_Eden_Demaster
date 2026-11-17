@@ -21,14 +21,15 @@ const char * nullPathC = nullPath.c_str();
 
 bool bInvalidFile = false;
 
-//CREATES PATH
-__declspec(naked) void directIO_fopenReroute()
+// ============================================================
+// THE HOOKS BELOW ARE ASSEMBLY BRIDGES THAT CALL ORDINARY FUNCTIONS
+// C++ statements written inside a naked function only work while the compiler emits unoptimized code: it needs no
+// frame of its own there. An optimized build lays the stack out its own way, corrupts the hooked routine's frame and
+// crashed at startup (Release build, exception 0xC00001A5 at IO_backlogFilePath+0xE). The bridges keep the registers
+// the hooked code relies on; the work is done in functions the compiler sets up normally, in any build.
+// ============================================================
+static void __cdecl RerouteFilePath()
 {
-	__asm
-	{
-		MOV filePathBuffer, EDX //save buffer
-		MOV filePathStrlen, ECX //and strlen
-	}
 	if(bInvalidFile==true) //check state if was invalid file before
 	{
 		*((DWORD*)IO_seekAddresses[0]) = IO_SEEKASM1;
@@ -46,7 +47,7 @@ __declspec(naked) void directIO_fopenReroute()
 
 	if (GetFileAttributesA(IO_backlogFilePath) == INVALID_FILE_ATTRIBUTES)
 	{
-		OutputDebug("%s: %s, %s\n", __func__, IO_backlogFilePath, "file not found");
+		OutputDebug("%s: %s, %s\n", "directIO_fopenReroute", IO_backlogFilePath, "file not found");
 		strcpy(IO_backlogFilePath, (char*)filePathBuffer);
 		bInvalidFile = true;
 		*((DWORD*)IO_seekAddresses[0]) = IO_originalBytes[0];
@@ -56,10 +57,17 @@ __declspec(naked) void directIO_fopenReroute()
 		//rewrite functions to original one
 	}
 	else
-		OutputDebug("%s: %s\n", __func__, IO_backlogFilePath);
+		OutputDebug("%s: %s\n", "directIO_fopenReroute", IO_backlogFilePath);
+}
 
+//CREATES PATH
+__declspec(naked) void directIO_fopenReroute()
+{
 	__asm
 	{
+		MOV filePathBuffer, EDX //save buffer
+		MOV filePathStrlen, ECX //and strlen
+		CALL RerouteFilePath //EAX, ECX and EDX are free: ECX and EDX are reloaded below
 		//original code here
 		//CMP bInvalidFile, 0
 		//JE _normalpush
@@ -95,6 +103,20 @@ __declspec(naked) void directIO_fopenReroute2()
 int loc00 = 0;
 FILE* fd;
 
+// The size of the redirected file on disk, or -1 when it does not exist (directIO_fopenReroute3 stores it).
+static void __cdecl RedirectedFileSize()
+{
+	if (GetFileAttributesA(IO_backlogFilePath) == INVALID_FILE_ATTRIBUTES)
+		loc00 = -1;
+	else
+	{
+		fd = fopen(IO_backlogFilePath, "rb");
+		fseek(fd, 0, SEEK_END); //back
+		loc00 = ftell(fd);
+		fclose(fd);
+	}
+}
+
 //SETS FILESIZE BASED ON REAL HDD ENTRY INSTEAD OF VTABLE OF WEEP ARCHIVE
 __declspec(naked) void directIO_fopenReroute3()
 {
@@ -122,19 +144,7 @@ __declspec(naked) void directIO_fopenReroute3()
 			PUSH EBX
 			PUSH ECX
 			PUSH EDX
-	}
-	if (GetFileAttributesA(IO_backlogFilePath) == INVALID_FILE_ATTRIBUTES)
-		loc00 = -1;
-	else
-	{
-		fd = fopen(IO_backlogFilePath, "rb");
-		fseek(fd, 0, SEEK_END); //back
-		loc00 = ftell(fd);
-		fclose(fd);
-	}
-
-	__asm
-	{
+		CALL RedirectedFileSize
 		POP EDX
 		POP ECX
 		POP EBX

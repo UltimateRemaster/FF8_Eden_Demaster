@@ -1,6 +1,7 @@
 // ReSharper disable CppUseStructuredBinding
 #include "coreHeader.h"
 #include "texture.h"
+#include "image_header.h"
 #include <chrono>
 #include <filesystem>
 #define XXH_INLINE_ALL
@@ -478,63 +479,28 @@ __declspec(naked) void _cltObtainTexStructDebug()
 	}
 }
 
-void ReadPNGHeaderResolutionFast(std::istream& stream, Vector2Di &resolution)
-{
-	stream.seekg(8, std::ios::cur);
-	uint32_t ihdrMagic = 0;
-	stream.read(reinterpret_cast<char*>(&ihdrMagic), sizeof(uint32_t));
-	if (ihdrMagic != 0x52444849)
-	{
-		OutputDebug("Invalid PNG file!");
-		return;
-	}
-	stream.read(reinterpret_cast<char*>(&resolution.width), sizeof(uint32_t));
-	stream.read(reinterpret_cast<char*>(&resolution.height), sizeof(uint32_t));
-	resolution.height = _byteswap_ulong(resolution.height);
-	resolution.width = _byteswap_ulong(resolution.width);
-}
-
-void ReadDDSHeaderResolutionFast(std::istream& stream, Vector2Di& resolution)
-{
-	uint32_t headerSize = 0;
-	stream.read(reinterpret_cast<char*>(&headerSize), sizeof(uint32_t));
-	if (headerSize != 124)
-	{
-		OutputDebug("Invalid DDS file!");
-		return;
-	}
-	stream.seekg(4, std::ios::cur);
-	stream.read(reinterpret_cast<char*>(&resolution.width), sizeof(uint32_t));
-	stream.read(reinterpret_cast<char*>(&resolution.height), sizeof(uint32_t));
-}
-
-
-
+// The size from the header (image_header.h: a DDS's dwWidth and dwHeight in their own places; the upstream reader had
+// them swapped). lastGetImageResolution keeps the size as the atlas hooks have always seen it (AtlasSize): the Shiva
+// atlas reads it.
 Vector2Di GetImageResolutionFast(const char* filePath)
 {
-	Vector2Di resolution{};
-	
-	std::ifstream inFile;
-	inFile.open(filePath, std::ios::in | std::ios::binary);
-	if(!inFile.is_open())
-		{OutputDebug("%s error. File %s not opened\n", __func__, filePath); return resolution;}
-	uint32_t magic = 0;
-	inFile.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
-	switch(magic)
-	{
-		case MAGIC_PNG:
-			ReadPNGHeaderResolutionFast(inFile, resolution);
-			break;
-		case MAGIC_DDS:
-			ReadDDSHeaderResolutionFast(inFile,resolution);
-			break;
-		default:
-			OutputDebug("%s error. Unknown file format- only DDS and PNG are supported. I'm too lazy\n", __func__);
-	}
-	inFile.close();
+	const ImageHeaderSize size = ReadImageHeaderSize(filePath);
+	const Vector2Di resolution{size.width, size.height};
+	if (!size.width || !size.height)
+		OutputDebug("%s error. %s is missing or neither a PNG nor a DDS\n", __func__, filePath);
 	OutputDebug("%s: %s resolution: %dx%d\n", __func__, filePath, resolution.width, resolution.height);
-	lastGetImageResolution = resolution;
+	const ImageHeaderSize seen = AtlasSize(size);
+	lastGetImageResolution = Vector2Di{seen.width, seen.height};
 	return resolution;
+}
+
+// The side a battle atlas is sized from, as it always was (image_header.h, AtlasSide).
+DWORD GetImageAtlasSideFast(const char* filePath)
+{
+	const ImageHeaderSize size = ReadImageHeaderSize(filePath);
+	const ImageHeaderSize seen = AtlasSize(size);
+	lastGetImageResolution = Vector2Di{seen.width, seen.height};
+	return seen.width;
 }
 
 void ReplaceTextureFunction()
